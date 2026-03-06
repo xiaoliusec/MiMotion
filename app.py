@@ -277,7 +277,7 @@ def verify_code():
 
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, is_admin FROM users WHERE code = ?", (code,))
+    cursor.execute("SELECT id, is_admin, is_super_admin FROM users WHERE code = ?", (code,))
     row = cursor.fetchone()
 
     if not row:
@@ -287,6 +287,7 @@ def verify_code():
 
     user_id = row["id"]
     is_admin_user = row["is_admin"]
+    is_super_admin_user = row["is_super_admin"]
 
     new_session_id = secrets.token_hex(16)
     cursor.execute(
@@ -299,6 +300,7 @@ def verify_code():
         "user_id": user_id,
         "session_id": new_session_id,
         "is_admin": is_admin_user,
+        "is_super_admin": is_super_admin_user,
         "exp": datetime.utcnow() + timedelta(hours=JWT_EXPIRY_HOURS),
     }
     token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
@@ -310,6 +312,7 @@ def verify_code():
             "success": True,
             "token": token,
             "isAdmin": is_admin_user == 1,
+            "isSuperAdmin": is_super_admin_user == 1,
             "expiresIn": JWT_EXPIRY_HOURS * 3600,
         }
     )
@@ -341,6 +344,10 @@ def handle_codes():
 
         if not validate_code(new_code):
             return jsonify({"error": "验证码必须是1-16位字母或数字"}), 400
+
+        if is_admin_flag == 1 and not is_super_admin(request.db_user_id):
+            conn.close()
+            return jsonify({"error": "只有超级管理员才能添加管理员验证码"}), 403
 
         try:
             cursor.execute("INSERT INTO users (code, is_admin) VALUES (?, ?)", (new_code, is_admin_flag))

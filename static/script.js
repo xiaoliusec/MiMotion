@@ -1,6 +1,7 @@
 const API_BASE = '/api';
 let jwtToken = localStorage.getItem('zpwx_jwt');
 let isAdmin = localStorage.getItem('zpwx_is_admin') === 'true';
+let isSuperAdmin = localStorage.getItem('zpwx_is_super_admin') === 'true';
 let currentAccountId = null;
 let selectedAccounts = new Set();
 let historyPage = 1;
@@ -117,8 +118,10 @@ async function handleVerify(e) {
         if (data.success) {
             jwtToken = data.token;
             isAdmin = data.isAdmin || false;
+            isSuperAdmin = data.isSuperAdmin || false;
             localStorage.setItem('zpwx_jwt', jwtToken);
             localStorage.setItem('zpwx_is_admin', isAdmin);
+            localStorage.setItem('zpwx_is_super_admin', isSuperAdmin);
             showMainPage();
         } else {
             showResult('verify-result', data.error, 'error');
@@ -133,10 +136,12 @@ async function handleVerify(e) {
 function logout() {
     jwtToken = null;
     isAdmin = false;
+    isSuperAdmin = false;
     currentAccountId = null;
     selectedAccounts.clear();
     localStorage.removeItem('zpwx_jwt');
     localStorage.removeItem('zpwx_is_admin');
+    localStorage.removeItem('zpwx_is_super_admin');
     checkAuth();
 }
 
@@ -451,14 +456,18 @@ function renderCodes(codes) {
         return;
     }
 
-    list.innerHTML = codes.map(code => `
+    list.innerHTML = codes.map(code => {
+        const canDelete = isSuperAdmin ?
+            !code.is_super_admin : !code.is_admin;
+
+        return `
         <div class="code-item">
             <div class="code-item-info">
                 <span class="code-item-value">${code.code}</span>
                 ${code.is_super_admin ? '<span class="code-item-badge super-admin">超级管理员</span>' : ''}
                 <span class="code-item-badge ${code.is_admin ? 'admin' : ''}">${code.is_admin ? '管理员' : '普通'}</span>
             </div>
-            ${!code.is_admin || (code.is_admin && !code.is_super_admin) ? `
+            ${canDelete ? `
                 <button class="code-item-delete" onclick="deleteCode(${code.id})">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="18" y1="6" x2="6" y2="18"/>
@@ -467,12 +476,27 @@ function renderCodes(codes) {
                 </button>
             ` : ''}
         </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
 function showAddCodeModal() {
     document.getElementById('add-code-modal').style.display = 'flex';
     document.getElementById('code-value').value = '';
+
+    const adminOptionGroup = document.getElementById('admin-option-group');
+    const adminCheckbox = document.getElementById('code-is-admin');
+
+    if (isSuperAdmin) {
+        adminOptionGroup.style.display = 'block';
+        adminCheckbox.disabled = false;
+        adminCheckbox.checked = false;
+    } else {
+        adminOptionGroup.style.display = 'none';
+        adminCheckbox.disabled = true;
+        adminCheckbox.checked = false;
+    }
+
     hideResult('add-code-result');
     document.getElementById('code-value').focus();
 }
