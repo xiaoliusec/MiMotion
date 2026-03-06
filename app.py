@@ -327,27 +327,27 @@ def handle_codes():
 
     elif action == "create":
         new_code = data.get("code", "").strip()
-        is_admin = data.get("isAdmin", 0)
+        is_admin_flag = data.get("isAdmin", 0)
 
         if not validate_code(new_code):
             return jsonify({"error": "验证码必须是1-16位字母或数字"}), 400
 
         try:
-            cursor.execute("INSERT INTO users (code, is_admin) VALUES (?, ?)", (new_code, is_admin))
+            cursor.execute("INSERT INTO users (code, is_admin) VALUES (?, ?)", (new_code, is_admin_flag))
             conn.commit()
             code_id = cursor.lastrowid
             log_operation(
                 request.db_user_id,
                 get_user_code(request.db_user_id),
                 "create_code",
-                f"创建验证码: {new_code}" + ("（管理员）" if is_admin else ""),
+                f"创建验证码: {new_code}" + ("（管理员）" if is_admin_flag else ""),
             )
         except sqlite3.IntegrityError:
             conn.close()
             return jsonify({"error": "验证码已存在"}), 400
         conn.close()
         return jsonify(
-            {"success": True, "code": {"id": code_id, "code": new_code, "is_admin": is_admin}}
+            {"success": True, "code": {"id": code_id, "code": new_code, "is_admin": is_admin_flag}}
         )
 
     return jsonify({"error": "无效操作"}), 400
