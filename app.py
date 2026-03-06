@@ -331,9 +331,19 @@ def handle_codes():
     cursor = conn.cursor()
 
     if action == "list":
-        cursor.execute(
-            "SELECT id, code, is_admin, is_super_admin, created_at FROM users ORDER BY created_at DESC"
-        )
+        if is_super_admin(request.db_user_id):
+            cursor.execute(
+                "SELECT id, code, is_admin, is_super_admin, created_at FROM users ORDER BY created_at DESC"
+            )
+        elif is_admin(request.db_user_id):
+            cursor.execute(
+                "SELECT id, code, is_admin, is_super_admin, created_at FROM users WHERE is_super_admin = 0 AND is_admin = 0 ORDER BY created_at DESC"
+            )
+        else:
+            cursor.execute(
+                "SELECT id, code, is_admin, is_super_admin, created_at FROM users WHERE id = ? ORDER BY created_at DESC",
+                (request.db_user_id,)
+            )
         codes = [dict(row) for row in cursor.fetchall()]
         conn.close()
         return jsonify({"codes": codes})

@@ -60,12 +60,12 @@
             <div class="card-body">
                 <div class="admin-section" id="admin-section" style="display: none;">
                     <div class="section-header">
-                        <h2>验证码管理</h2>
+                        <h2 id="codes-section-title">验证码管理</h2>
                         <div class="section-actions">
-                            <button class="btn btn-outline btn-sm" onclick="showChangeCodeModal()">
+                            <button class="btn btn-outline btn-sm" id="change-code-btn" onclick="showChangeCodeModal()">
                                 修改我的验证码
                             </button>
-                            <button class="btn btn-primary btn-sm" onclick="showAddCodeModal()">
+                            <button class="btn btn-primary btn-sm" id="add-code-btn" onclick="showAddCodeModal()">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;margin-right:4px;">
                                     <line x1="12" y1="5" x2="12" y2="19"/>
                                     <line x1="5" y1="12" x2="19" y2="12"/>
@@ -76,9 +76,9 @@
                     </div>
                     <div class="codes-list" id="codes-list"></div>
                     
-                    <div class="section-header" style="margin-top:16px;">
+                    <div class="section-header" id="logs-section-header" style="margin-top:16px;">
                         <h2>操作日志</h2>
-                        <button class="btn btn-primary btn-sm" onclick="showLogsModal()">
+                        <button class="btn btn-primary btn-sm" id="logs-btn" onclick="showLogsModal()">
                             查看日志
                         </button>
                     </div>

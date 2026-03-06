@@ -55,6 +55,18 @@ function showMainPage() {
     } else {
         document.getElementById('admin-section').style.display = 'none';
     }
+
+    if (isAdmin) {
+        document.getElementById('codes-section-title').textContent = '验证码管理';
+        document.getElementById('add-code-btn').style.display = 'flex';
+        document.getElementById('logs-btn').style.display = 'inline-block';
+        document.getElementById('logs-section-header').style.display = 'flex';
+    } else {
+        document.getElementById('codes-section-title').textContent = '我的验证码';
+        document.getElementById('add-code-btn').style.display = 'none';
+        document.getElementById('logs-btn').style.display = 'none';
+        document.getElementById('logs-section-header').style.display = 'none';
+    }
 }
 
 function togglePassword() {
@@ -481,12 +493,13 @@ function renderCodes(codes) {
                 !code.is_super_admin : !code.is_admin;
             const canReset = isAdmin && code.id != currentUserId && canDelete;
 
+            const codeType = code.is_super_admin ? '超级管理员' : (code.is_admin ? '管理员' : '普通');
+
         return `
         <div class="code-item" data-user-id="${code.id}" data-code="${code.code}">
             <div class="code-item-info">
                 <span class="code-item-value">${code.code}</span>
-                ${code.is_super_admin ? '<span class="code-item-badge super-admin">超级管理员</span>' : ''}
-                <span class="code-item-badge ${code.is_admin ? 'admin' : ''}">${code.is_admin ? '管理员' : '普通'}</span>
+                <span class="code-item-badge ${code.is_admin ? 'admin' : ''}">${codeType}</span>
             </div>
             <div class="code-item-actions">
                 ${canReset ? `
