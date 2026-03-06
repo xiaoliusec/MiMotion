@@ -41,7 +41,7 @@ cd MiMotion
 pip install -r requirements.txt
 ```
 
-### 3. 启动服务（首次运行会自动创建数据库）
+### 3. 启动服务（首次运行会自动创建数据库并初始化默认管理员验证码）
 
 ```bash
 python app.py
@@ -49,21 +49,19 @@ python app.py
 
 服务运行在 `http://0.0.0.0:50000`
 
-### 4. 添加管理员验证码
+### 4. 使用默认验证码登录
 
-```bash
-python manage.py add admin123
-```
+默认管理员验证码：`wxyd@zeep123`
 
-验证码要求：1-16位字母或数字，例如 `admin123`、`test01`、`ABC`
+首次启动时会自动创建此验证码，你可以直接使用它登录管理后台。
 
 ## 使用教程
 
 ### 第一步：登录
 
 1. 打开浏览器访问 `http://localhost:50000`
-2. 输入验证码登录
-3. 首次登录自动成为管理员
+2. 输入默认管理员验证码：`wxyd@zeep123`
+3. 首次启动时会自动创建此验证码
 
 ### 第二步：添加小米账号
 
@@ -83,22 +81,27 @@ python manage.py add admin123
 
 修改成功后，步数会同步到你的微信运动。
 
-## 管理命令
+### 第四步：管理验证码（仅管理员）
 
-使用 `manage.py` 管理验证码：
+1. 切换到「管理」标签页
+2. 可以查看所有验证码列表
+3. 点击「添加验证码」创建新验证码
+4. 勾选「设为管理员验证码」可创建管理员权限的验证码
+5. 点击「删除」按钮删除不需要的验证码（管理员验证码只能删除其他普通验证码）
 
-```bash
-# 添加管理员验证码
-python manage.py add admin123
+## 项目结构
 
-# 添加普通用户验证码
-python manage.py add user001 0
-
-# 列出所有验证码
-python manage.py list
-
-# 删除验证码（需要先 list 查看 ID）
-python manage.py delete 1
+```
+MiMotion/
+├── app.py              # Flask 主程序
+├── zpwx.py             # Zepp API 核心逻辑
+├── requirements.txt    # Python 依赖
+├── static/
+│   ├── script.js       # 前端脚本
+│   └── style.css       # 样式文件
+├── templates/
+│   └── index.html      # 主页模板
+└── zpwx.db             # SQLite 数据库
 ```
 
 ## API 文档
@@ -123,15 +126,16 @@ python manage.py delete 1
 | 接口 | 方法 | 说明 |
 |------|------|------|
 | `/api/admin/codes` | GET | 获取所有验证码 |
-| `/api/admin/codes` | POST | 创建验证码 |
+| `/api/admin/codes` | POST | 创建验证码（支持设置管理员权限） |
 | `/api/admin/codes/<id>` | DELETE | 删除验证码 |
+| `/api/admin/history` | POST | 获取所有历史记录 |
+| `/api/admin/logs` | POST | 获取操作日志 |
 
 ## 项目结构
 
 ```
 MiMotion/
 ├── app.py              # Flask 主程序
-├── manage.py           # 管理脚本
 ├── zpwx.py             # Zepp API 核心逻辑
 ├── requirements.txt    # Python 依赖
 ├── static/
@@ -159,15 +163,20 @@ A:
 
 ### Q: 如何添加更多管理员？
 A: 
-```bash
-python manage.py add 新验证码
-```
+1. 使用管理员账号登录
+2. 进入「管理」标签页
+3. 点击「添加验证码」
+4. 勾选「设为管理员验证码」
+5. 输入验证码并添加
 
 ### Q: 如何查看当前有哪些验证码？
 A: 
-```bash
-python manage.py list
-```
+1. 使用管理员账号登录
+2. 进入「管理」标签页
+3. 在验证码列表中查看所有验证码
+
+### Q: 默认的管理员验证码是什么？
+A: 首次启动应用时会自动创建默认管理员验证码：`wxyd@zeep123`
 
 ## 免责声明
 

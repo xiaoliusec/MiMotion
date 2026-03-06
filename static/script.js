@@ -482,9 +482,10 @@ function hideAddCodeModal() {
 
 async function addCode() {
     const code = document.getElementById('code-value').value.trim();
+    const isAdmin = document.getElementById('code-is-admin').checked ? 1 : 0;
 
-    if (!code || code.length > 16 || !/^[A-Za-z0-9]+$/.test(code)) {
-        showResult('add-code-result', '验证码必须是1-16位字母或数字', 'error');
+    if (!code || code.length > 16 || code.length < 1) {
+        showResult('add-code-result', '验证码必须是1-16位任意字符', 'error');
         return;
     }
 
@@ -498,7 +499,7 @@ async function addCode() {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${jwtToken}`
             },
-            body: JSON.stringify({ action: 'create', code })
+            body: JSON.stringify({ action: 'create', code, isAdmin })
         });
         const data = await response.json();
 

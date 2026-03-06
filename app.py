@@ -117,6 +117,13 @@ def init_db():
         )
     """)
 
+    cursor.execute("SELECT COUNT(*) FROM users")
+    count = cursor.fetchone()[0]
+
+    if count == 0:
+        cursor.execute("INSERT INTO users (code, is_admin) VALUES (?, ?)", ("wxyd@zeep123", 1))
+        logger.info("初始化默认管理员验证码: wxyd@zeep123")
+
     conn.commit()
     conn.close()
 
@@ -217,9 +224,9 @@ def get_user_code(user_id):
 
 
 def validate_code(code):
-    if not code or len(code) > 16:
+    if not code or len(code) > 16 or len(code) < 1:
         return False
-    return bool(re.match(r"^[A-Za-z0-9]+$", code))
+    return True
 
 
 def validate_int(value, field_name):
@@ -320,25 +327,27 @@ def handle_codes():
 
     elif action == "create":
         new_code = data.get("code", "").strip()
+        is_admin = data.get("isAdmin", 0)
+
         if not validate_code(new_code):
             return jsonify({"error": "验证码必须是1-16位字母或数字"}), 400
 
         try:
-            cursor.execute("INSERT INTO users (code) VALUES (?)", (new_code,))
+            cursor.execute("INSERT INTO users (code, is_admin) VALUES (?, ?)", (new_code, is_admin))
             conn.commit()
             code_id = cursor.lastrowid
             log_operation(
                 request.db_user_id,
                 get_user_code(request.db_user_id),
                 "create_code",
-                f"创建验证码: {new_code}",
+                f"创建验证码: {new_code}" + ("（管理员）" if is_admin else ""),
             )
         except sqlite3.IntegrityError:
             conn.close()
             return jsonify({"error": "验证码已存在"}), 400
         conn.close()
         return jsonify(
-            {"success": True, "code": {"id": code_id, "code": new_code, "is_admin": 0}}
+            {"success": True, "code": {"id": code_id, "code": new_code, "is_admin": is_admin}}
         )
 
     return jsonify({"error": "无效操作"}), 400
