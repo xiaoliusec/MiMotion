@@ -10,6 +10,7 @@ let logsPage = 1;
 let allAccounts = [];
 
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('页面加载完成，检查认证状态...');
     checkAuth();
     initEventListeners();
 });
@@ -576,7 +577,7 @@ async function changeOwnCode() {
     }
 
     try {
-        showLoading('change-code-btn', true);
+        showLoading('change-code-submit-btn', true);
         hideResult('change-code-result');
 
         const response = await fetch(`${API_BASE}/code/change`, {
@@ -599,7 +600,7 @@ async function changeOwnCode() {
     } catch (error) {
         showResult('change-code-result', '修改失败: ' + error.message, 'error');
     } finally {
-        showLoading('change-code-btn', false);
+        showLoading('change-code-submit-btn', false);
     }
 }
 

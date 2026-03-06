@@ -50,11 +50,16 @@
             </div>
         </div>
 
-        <div class="card main-card" id="main-card" style="display: none;">
+        <div class="card main-card" id="main-card" style="display: none !important;">
             <div class="card-header main-header">
                 <div class="header-content">
                     <h1>小米运动步数修改</h1>
-                    <button class="btn-logout" onclick="logout()">退出登录</button>
+                    <div class="header-actions">
+                        <button class="btn btn-outline btn-sm" onclick="showChangeCodeModal()">
+                            修改我的验证码
+                        </button>
+                        <button class="btn btn-logout" onclick="logout()">退出登录</button>
+                    </div>
                 </div>
             </div>
             <div class="card-body">
@@ -62,9 +67,6 @@
                     <div class="section-header">
                         <h2 id="codes-section-title">验证码管理</h2>
                         <div class="section-actions">
-                            <button class="btn btn-outline btn-sm" id="change-code-btn" onclick="showChangeCodeModal()">
-                                修改我的验证码
-                            </button>
                             <button class="btn btn-primary btn-sm" id="add-code-btn" onclick="showAddCodeModal()">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;margin-right:4px;">
                                     <line x1="12" y1="5" x2="12" y2="19"/>
@@ -310,7 +312,7 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-outline" onclick="hideChangeCodeModal()">取消</button>
-                <button class="btn btn-primary" onclick="changeOwnCode()" id="change-code-btn">
+                <button class="btn btn-primary" onclick="changeOwnCode()" id="change-code-submit-btn">
                     <span class="btn-text">修改</span>
                     <span class="btn-loading" style="display:none;">
                         <svg class="spinner" viewBox="0 0 24 24">

@@ -88,6 +88,13 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 12px;
+}
+
+.header-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
 }
 
 .header-content h1 {
@@ -104,6 +111,17 @@ body {
     border-radius: 6px;
     cursor: pointer;
     transition: all 0.2s;
+}
+
+.header-actions .btn-outline {
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid white;
+    color: var(--primary);
+}
+
+.header-actions .btn-outline:hover {
+    background: white;
+    border-color: white;
 }
 
 .btn-logout:hover {
