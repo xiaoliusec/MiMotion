@@ -643,6 +643,12 @@ body {
     color: #c62828;
 }
 
+.code-item-badge.super-admin {
+    background: #fff3e0;
+    color: #e65100;
+    font-weight: 600;
+}
+
 .code-item-value {
     font-family: monospace;
     font-size: 16px;

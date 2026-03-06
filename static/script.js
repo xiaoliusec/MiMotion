@@ -455,9 +455,10 @@ function renderCodes(codes) {
         <div class="code-item">
             <div class="code-item-info">
                 <span class="code-item-value">${code.code}</span>
+                ${code.is_super_admin ? '<span class="code-item-badge super-admin">超级管理员</span>' : ''}
                 <span class="code-item-badge ${code.is_admin ? 'admin' : ''}">${code.is_admin ? '管理员' : '普通'}</span>
             </div>
-            ${!code.is_admin ? `
+            ${!code.is_admin || (code.is_admin && !code.is_super_admin) ? `
                 <button class="code-item-delete" onclick="deleteCode(${code.id})">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="18" y1="6" x2="6" y2="18"/>

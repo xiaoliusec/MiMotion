@@ -51,6 +51,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             code TEXT UNIQUE NOT NULL,
             is_admin INTEGER DEFAULT 0,
+            is_super_admin INTEGER DEFAULT 0,
             session_id TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
@@ -121,8 +122,8 @@ def init_db():
     count = cursor.fetchone()[0]
 
     if count == 0:
-        cursor.execute("INSERT INTO users (code, is_admin) VALUES (?, ?)", ("wxyd@zeep123", 1))
-        logger.info("初始化默认管理员验证码: wxyd@zeep123")
+        cursor.execute("INSERT INTO users (code, is_admin, is_super_admin) VALUES (?, ?, ?)", ("wxyd@zeep123", 1, 1))
+        logger.info("初始化默认超级管理员验证码: wxyd@zeep123")
 
     conn.commit()
     conn.close()
@@ -212,6 +213,15 @@ def is_admin(user_id):
     row = cursor.fetchone()
     conn.close()
     return row and row["is_admin"] == 1
+
+
+def is_super_admin(user_id):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT is_super_admin FROM users WHERE id = ?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return row and row["is_super_admin"] == 1
 
 
 def get_user_code(user_id):
@@ -319,7 +329,7 @@ def handle_codes():
 
     if action == "list":
         cursor.execute(
-            "SELECT id, code, is_admin, created_at FROM users ORDER BY created_at DESC"
+            "SELECT id, code, is_admin, is_super_admin, created_at FROM users ORDER BY created_at DESC"
         )
         codes = [dict(row) for row in cursor.fetchall()]
         conn.close()
@@ -372,7 +382,24 @@ def delete_code():
 
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM users WHERE id = ? AND is_admin = 0", (code_id,))
+
+    cursor.execute("SELECT is_admin, is_super_admin FROM users WHERE id = ?", (code_id,))
+    target_user = cursor.fetchone()
+
+    if not target_user:
+        conn.close()
+        return jsonify({"error": "验证码不存在"}), 404
+
+    if target_user["is_admin"] == 1:
+        if not is_super_admin(request.db_user_id):
+            conn.close()
+            return jsonify({"error": "只有超级管理员才能删除其他管理员验证码"}), 403
+
+        if target_user["is_super_admin"] == 1:
+            conn.close()
+            return jsonify({"error": "不能删除超级管理员验证码"}), 403
+
+    cursor.execute("DELETE FROM users WHERE id = ?", (code_id,))
     conn.commit()
     log_operation(
         request.db_user_id,
