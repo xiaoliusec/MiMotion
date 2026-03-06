@@ -2,6 +2,7 @@ const API_BASE = '/api';
 let jwtToken = localStorage.getItem('zpwx_jwt');
 let isAdmin = localStorage.getItem('zpwx_is_admin') === 'true';
 let isSuperAdmin = localStorage.getItem('zpwx_is_super_admin') === 'true';
+let currentUserId = localStorage.getItem('zpwx_current_user_id');
 let currentAccountId = null;
 let selectedAccounts = new Set();
 let historyPage = 1;
@@ -119,9 +120,14 @@ async function handleVerify(e) {
             jwtToken = data.token;
             isAdmin = data.isAdmin || false;
             isSuperAdmin = data.isSuperAdmin || false;
+
+            const payload = parseJwt(jwtToken);
+            const currentUserId = payload.user_id;
             localStorage.setItem('zpwx_jwt', jwtToken);
             localStorage.setItem('zpwx_is_admin', isAdmin);
             localStorage.setItem('zpwx_is_super_admin', isSuperAdmin);
+            localStorage.setItem('zpwx_current_user_id', currentUserId);
+
             showMainPage();
         } else {
             showResult('verify-result', data.error, 'error');
@@ -142,7 +148,21 @@ function logout() {
     localStorage.removeItem('zpwx_jwt');
     localStorage.removeItem('zpwx_is_admin');
     localStorage.removeItem('zpwx_is_super_admin');
+    localStorage.removeItem('zpwx_current_user_id');
     checkAuth();
+}
+
+function parseJwt(token) {
+    try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        return JSON.parse(jsonPayload);
+    } catch (e) {
+        return {};
+    }
 }
 
 async function loadAccounts() {
@@ -457,8 +477,9 @@ function renderCodes(codes) {
     }
 
     list.innerHTML = codes.map(code => {
-        const canDelete = isSuperAdmin ?
-            !code.is_super_admin : !code.is_admin;
+            const canDelete = isSuperAdmin ?
+                !code.is_super_admin : !code.is_admin;
+            const canReset = isAdmin && code.id != currentUserId && canDelete;
 
         return `
         <div class="code-item">
@@ -467,14 +488,24 @@ function renderCodes(codes) {
                 ${code.is_super_admin ? '<span class="code-item-badge super-admin">超级管理员</span>' : ''}
                 <span class="code-item-badge ${code.is_admin ? 'admin' : ''}">${code.is_admin ? '管理员' : '普通'}</span>
             </div>
-            ${canDelete ? `
-                <button class="code-item-delete" onclick="deleteCode(${code.id})">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="18" y1="6" x2="6" y2="18"/>
-                        <line x1="6" y1="6" x2="18" y2="18"/>
-                    </svg>
-                </button>
-            ` : ''}
+            <div class="code-item-actions">
+                ${canReset ? `
+                    <button class="code-item-action" onclick="showResetCodeModal(${code.id})" title="重置验证码">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M23 4v6h-6M1 20v-6h6"/>
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                        </svg>
+                    </button>
+                ` : ''}
+                ${canDelete ? `
+                    <button class="code-item-delete" onclick="deleteCode(${code.id})">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"/>
+                            <line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                    </button>
+                ` : ''}
+            </div>
         </div>
         `;
     }).join('');
@@ -503,6 +534,99 @@ function showAddCodeModal() {
 
 function hideAddCodeModal() {
     document.getElementById('add-code-modal').style.display = 'none';
+}
+
+function showChangeCodeModal() {
+    document.getElementById('change-code-modal').style.display = 'flex';
+    document.getElementById('old-code').value = '';
+    document.getElementById('new-code').value = '';
+    hideResult('change-code-result');
+    document.getElementById('old-code').focus();
+}
+
+function hideChangeCodeModal() {
+    document.getElementById('change-code-modal').style.display = 'none';
+}
+
+async function changeOwnCode() {
+    const oldCode = document.getElementById('old-code').value.trim();
+    const newCode = document.getElementById('new-code').value.trim();
+
+    if (!oldCode || !newCode) {
+        showResult('change-code-result', '请输入旧验证码和新验证码', 'error');
+        return;
+    }
+
+    if (newCode.length > 16 || newCode.length < 1) {
+        showResult('change-code-result', '验证码必须是1-16位任意字符', 'error');
+        return;
+    }
+
+    try {
+        showLoading('change-code-btn', true);
+        hideResult('change-code-result');
+
+        const response = await fetch(`${API_BASE}/code/change`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${jwtToken}`
+            },
+            body: JSON.stringify({ oldCode, newCode })
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            hideChangeCodeModal();
+            alert('验证码修改成功，请重新登录');
+            logout();
+        } else {
+            showResult('change-code-result', data.error, 'error');
+        }
+    } catch (error) {
+        showResult('change-code-result', '修改失败: ' + error.message, 'error');
+    } finally {
+        showLoading('change-code-btn', false);
+    }
+}
+
+let resetCodeTargetId = null;
+
+function showResetCodeModal(userId) {
+    resetCodeTargetId = userId;
+    const newCode = prompt('请输入新的验证码（1-16位任意字符）:');
+    
+    if (!newCode) return;
+    
+    if (newCode.length > 16 || newCode.length < 1) {
+        alert('验证码必须是1-16位任意字符');
+        return;
+    }
+
+    resetCode(userId, newCode);
+}
+
+async function resetCode(userId, newCode) {
+    try {
+        const response = await fetch(`${API_BASE}/admin/code/reset`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${jwtToken}`
+            },
+            body: JSON.stringify({ userId, code: newCode })
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            alert('验证码重置成功');
+            loadCodes();
+        } else {
+            alert('重置失败: ' + data.error);
+        }
+    } catch (error) {
+        alert('重置失败: ' + error.message);
+    }
 }
 
 async function addCode() {

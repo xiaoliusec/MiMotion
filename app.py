@@ -367,7 +367,154 @@ def handle_codes():
             {"success": True, "code": {"id": code_id, "code": new_code, "is_admin": is_admin_flag}}
         )
 
+    elif action == "reset":
+        target_user_id = data.get("userId")
+        new_code = data.get("code", "").strip()
+
+        if not target_user_id or not new_code:
+            conn.close()
+            return jsonify({"error": "参数不完整"}), 400
+
+        if not validate_code(new_code):
+            conn.close()
+            return jsonify({"error": "验证码必须是1-16位字母或数字"}), 400
+
+        cursor.execute("SELECT is_admin, is_super_admin FROM users WHERE id = ?", (target_user_id,))
+        target_user = cursor.fetchone()
+
+        if not target_user:
+            conn.close()
+            return jsonify({"error": "用户不存在"}), 404
+
+        if not is_admin(request.db_user_id):
+            conn.close()
+            return jsonify({"error": "无权限"}), 403
+
+        if target_user["is_super_admin"] == 1:
+            conn.close()
+            return jsonify({"error": "不能重置超级管理员验证码"}), 403
+
+        if target_user["is_admin"] == 1 and not is_super_admin(request.db_user_id):
+            conn.close()
+            return jsonify({"error": "只有超级管理员才能重置管理员验证码"}), 403
+
+        try:
+            cursor.execute("UPDATE users SET code = ? WHERE id = ?", (new_code, target_user_id))
+            conn.commit()
+            log_operation(
+                request.db_user_id,
+                get_user_code(request.db_user_id),
+                "reset_code",
+                f"重置用户ID {target_user_id} 的验证码",
+            )
+        except sqlite3.IntegrityError:
+            conn.close()
+            return jsonify({"error": "验证码已存在"}), 400
+
+        conn.close()
+        return jsonify({"success": True})
+
     return jsonify({"error": "无效操作"}), 400
+
+
+@app.route("/api/admin/code/reset", methods=["POST"])
+@jwt_required
+def reset_code():
+    data = request.json
+    target_user_id = data.get("userId")
+    new_code = data.get("code", "").strip()
+
+    try:
+        target_user_id = validate_int(target_user_id, "用户ID")
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    if not new_code:
+        return jsonify({"error": "请输入新验证码"}), 400
+
+    if not validate_code(new_code):
+        return jsonify({"error": "验证码必须是1-16位字母或数字"}), 400
+
+    if not is_admin(request.db_user_id):
+        return jsonify({"error": "无权限"}), 403
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT is_admin, is_super_admin FROM users WHERE id = ?", (target_user_id,))
+    target_user = cursor.fetchone()
+
+    if not target_user:
+        conn.close()
+        return jsonify({"error": "用户不存在"}), 404
+
+    if target_user["is_super_admin"] == 1:
+        conn.close()
+        return jsonify({"error": "不能重置超级管理员验证码"}), 403
+
+    if target_user["is_admin"] == 1 and not is_super_admin(request.db_user_id):
+        conn.close()
+        return jsonify({"error": "只有超级管理员才能重置管理员验证码"}), 403
+
+    try:
+        cursor.execute("UPDATE users SET code = ? WHERE id = ?", (new_code, target_user_id))
+        conn.commit()
+        log_operation(
+            request.db_user_id,
+            get_user_code(request.db_user_id),
+            "reset_code",
+            f"重置用户ID {target_user_id} 的验证码",
+        )
+    except sqlite3.IntegrityError:
+        conn.close()
+        return jsonify({"error": "验证码已存在"}), 400
+
+    conn.close()
+    return jsonify({"success": True})
+
+
+@app.route("/api/code/change", methods=["POST"])
+@jwt_required
+def change_own_code():
+    data = request.json
+    old_code = data.get("oldCode", "").strip()
+    new_code = data.get("newCode", "").strip()
+
+    if not old_code or not new_code:
+        return jsonify({"error": "请输入旧验证码和新验证码"}), 400
+
+    if not validate_code(new_code):
+        return jsonify({"error": "验证码必须是1-16位字母或数字"}), 400
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT code FROM users WHERE id = ?", (request.db_user_id,))
+    current_code = cursor.fetchone()
+
+    if not current_code:
+        conn.close()
+        return jsonify({"error": "用户不存在"}), 404
+
+    if current_code["code"] != old_code:
+        conn.close()
+        return jsonify({"error": "旧验证码错误"}), 400
+
+    try:
+        cursor.execute("UPDATE users SET code = ? WHERE id = ?", (new_code, request.db_user_id))
+        conn.commit()
+        log_operation(
+            request.db_user_id,
+            old_code,
+            "change_code",
+            f"修改验证码: {old_code} -> {new_code}",
+        )
+    except sqlite3.IntegrityError:
+        conn.close()
+        return jsonify({"error": "验证码已存在"}), 400
+
+    conn.close()
+    return jsonify({"success": True})
 
 
 @app.route("/api/admin/code/delete", methods=["POST"])

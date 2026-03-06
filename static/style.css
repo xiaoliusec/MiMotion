@@ -680,6 +680,40 @@ body {
     height: 16px;
 }
 
+.section-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.code-item-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.code-item-action {
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.code-item-action:hover {
+    background: var(--primary);
+    color: white;
+}
+
+.code-item-action svg {
+    width: 16px;
+    height: 16px;
+}
+
 .history-header {
     display: flex;
     justify-content: space-between;
