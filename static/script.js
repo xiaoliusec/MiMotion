@@ -482,7 +482,7 @@ function renderCodes(codes) {
             const canReset = isAdmin && code.id != currentUserId && canDelete;
 
         return `
-        <div class="code-item">
+        <div class="code-item" data-user-id="${code.id}" data-code="${code.code}">
             <div class="code-item-info">
                 <span class="code-item-value">${code.code}</span>
                 ${code.is_super_admin ? '<span class="code-item-badge super-admin">超级管理员</span>' : ''}
@@ -591,41 +591,75 @@ async function changeOwnCode() {
 }
 
 let resetCodeTargetId = null;
+let resetCodeTargetCode = null;
 
 function showResetCodeModal(userId) {
+    const codeItem = document.querySelector(`.code-item[data-user-id="${userId}"]`);
+    if (!codeItem) {
+        alert('找不到用户信息');
+        return;
+    }
+    
+    const targetCode = codeItem.dataset.code;
+
     resetCodeTargetId = userId;
-    const newCode = prompt('请输入新的验证码（1-16位任意字符）:');
+    resetCodeTargetCode = targetCode;
     
-    if (!newCode) return;
-    
-    if (newCode.length > 16 || newCode.length < 1) {
-        alert('验证码必须是1-16位任意字符');
+    document.getElementById('reset-code-modal').style.display = 'flex';
+    document.getElementById('reset-user-display').value = targetCode;
+    document.getElementById('reset-new-code').value = '';
+    hideResult('reset-code-result');
+    document.getElementById('reset-new-code').focus();
+}
+
+function hideResetCodeModal() {
+    document.getElementById('reset-code-modal').style.display = 'none';
+    resetCodeTargetId = null;
+    resetCodeTargetCode = null;
+}
+
+async function confirmResetCode() {
+    const newCode = document.getElementById('reset-new-code').value.trim();
+
+    if (!newCode) {
+        showResult('reset-code-result', '请输入新验证码', 'error');
         return;
     }
 
-    resetCode(userId, newCode);
-}
+    if (newCode.length > 16 || newCode.length < 1) {
+        showResult('reset-code-result', '验证码必须是1-16位任意字符', 'error');
+        return;
+    }
 
-async function resetCode(userId, newCode) {
+    if (!resetCodeTargetId) {
+        showResult('reset-code-result', '用户信息错误', 'error');
+        return;
+    }
+
     try {
+        showLoading('reset-code-btn', true);
+        hideResult('reset-code-result');
+
         const response = await fetch(`${API_BASE}/admin/code/reset`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${jwtToken}`
             },
-            body: JSON.stringify({ userId, code: newCode })
+            body: JSON.stringify({ userId: resetCodeTargetId, code: newCode })
         });
         const data = await response.json();
 
         if (data.success) {
-            alert('验证码重置成功');
+            hideResetCodeModal();
             loadCodes();
         } else {
-            alert('重置失败: ' + data.error);
+            showResult('reset-code-result', data.error, 'error');
         }
     } catch (error) {
-        alert('重置失败: ' + error.message);
+        showResult('reset-code-result', '重置失败: ' + error.message, 'error');
+    } finally {
+        showLoading('reset-code-btn', false);
     }
 }
 

@@ -324,6 +324,43 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="reset-code-modal" style="display: none;">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>重置验证码</h3>
+                <button class="modal-close" onclick="hideResetCodeModal()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="reset-user-display">用户</label>
+                    <input type="text" id="reset-user-display" disabled style="background: var(--bg);">
+                </div>
+                <div class="form-group">
+                    <label for="reset-new-code">新验证码（1-16位任意字符）</label>
+                    <input type="text" id="reset-new-code" placeholder="请输入新验证码" required>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="hideResetCodeModal()">取消</button>
+                <button class="btn btn-primary" onclick="confirmResetCode()" id="reset-code-btn">
+                    <span class="btn-text">重置</span>
+                    <span class="btn-loading" style="display:none;">
+                        <svg class="spinner" viewBox="0 0 24 24">
+                            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="31.4 31.4"/>
+                        </svg>
+                        重置中...
+                    </span>
+                </button>
+            </div>
+            <div id="reset-code-result" class="result" style="display: none;margin: 16px;"></div>
+        </div>
+    </div>
+
     <div class="modal-overlay" id="batch-step-modal" style="display: none;">
         <div class="modal">
             <div class="modal-header">
