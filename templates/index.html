@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小米运动步数修改工具</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="card" id="verify-card">
+            <div class="card-header verify-header">
+                <div class="logo">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                    </svg>
+                </div>
+                <h1>小米运动步数修改</h1>
+                <p class="subtitle">请输入验证码继续</p>
+            </div>
+            <div class="card-body">
+                <form id="verify-form">
+                    <div class="form-group password-input-group">
+                        <label for="verify-code">验证码</label>
+                        <div class="input-wrapper">
+                            <input type="password" id="verify-code" placeholder="请输入验证码" autocomplete="off" required>
+                            <button type="button" class="toggle-password" onclick="togglePassword()">
+                                <svg class="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                    <circle cx="12" cy="12" r="3"/>
+                                </svg>
+                                <svg class="eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none;">
+                                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                                    <line x1="1" y1="1" x2="23" y2="23"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="verify-btn">
+                        <span class="btn-text">验证</span>
+                        <span class="btn-loading" style="display:none;">
+                            <svg class="spinner" viewBox="0 0 24 24">
+                                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="31.4 31.4"/>
+                            </svg>
+                            验证中...
+                        </span>
+                    </button>
+                </form>
+                <div id="verify-result" class="result" style="display: none;"></div>
+            </div>
+        </div>
+
+        <div class="card main-card" id="main-card" style="display: none;">
+            <div class="card-header main-header">
+                <div class="header-content">
+                    <h1>小米运动步数修改</h1>
+                    <button class="btn-logout" onclick="logout()">退出登录</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="admin-section" id="admin-section" style="display: none;">
+                    <div class="section-header">
+                        <h2>验证码管理</h2>
+                        <button class="btn btn-primary btn-sm" onclick="showAddCodeModal()">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;margin-right:4px;">
+                                <line x1="12" y1="5" x2="12" y2="19"/>
+                                <line x1="5" y1="12" x2="19" y2="12"/>
+                            </svg>
+                            添加验证码
+                        </button>
+                    </div>
+                    <div class="codes-list" id="codes-list"></div>
+                    
+                    <div class="section-header" style="margin-top:16px;">
+                        <h2>操作日志</h2>
+                        <button class="btn btn-primary btn-sm" onclick="showLogsModal()">
+                            查看日志
+                        </button>
+                    </div>
+                </div>
+
+                <div class="tab-nav">
+                    <button class="tab-btn active" data-tab="accounts">账号管理</button>
+                    <button class="tab-btn" data-tab="history">修改历史</button>
+                    <button class="tab-btn" data-tab="tasks">定时任务</button>
+                </div>
+
+                <div class="tab-content" id="accounts-tab">
+                    <div class="accounts-section">
+                        <div class="section-header">
+                            <h2>已添加的账号</h2>
+                            <div class="batch-actions" style="display:none;">
+                                <span class="selected-count">已选择 <span id="selected-count-num">0</span> 个</span>
+                                <button class="btn btn-success btn-sm" onclick="showBatchStepModal()">批量修改</button>
+                            </div>
+                            <button class="btn btn-primary btn-sm" onclick="showAddAccountModal()" style="margin-left:auto;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;margin-right:4px;">
+                                    <line x1="12" y1="5" x2="12" y2="19"/>
+                                    <line x1="5" y1="12" x2="19" y2="12"/>
+                                </svg>
+                                添加账号
+                            </button>
+                        </div>
+                        <div class="accounts-list" id="accounts-list">
+                            <div class="empty-state">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                                    <circle cx="12" cy="7" r="4"/>
+                                </svg>
+                                <p>暂未添加账号</p>
+                                <button class="btn btn-outline" onclick="showAddAccountModal()">添加第一个账号</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="step-section" id="step-section" style="display: none;">
+                        <div class="selected-account">
+                            <span class="label">当前账号：</span>
+                            <span class="account-name" id="selected-account-name"></span>
+                        </div>
+                        <form id="step-form">
+                            <div class="form-group">
+                                <label for="step">目标步数</label>
+                                <div class="step-input">
+                                    <input type="number" id="step" placeholder="请输入步数" min="0" max="999999" required>
+                                    <span class="step-suffix">步</span>
+                                </div>
+                                <div class="quick-steps">
+                                    <button type="button" class="btn-quick" onclick="setStep(5000)">5000</button>
+                                    <button type="button" class="btn-quick" onclick="setStep(8000)">8000</button>
+                                    <button type="button" class="btn-quick" onclick="setStep(10000)">10000</button>
+                                    <button type="button" class="btn-quick" onclick="setStep(15000)">15000</button>
+                                    <button type="button" class="btn-quick" onclick="setStep(20000)">20000</button>
+                                    <button type="button" class="btn-quick" onclick="setStep(25000)">25000</button>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-success" id="set-step-btn">
+                                <span class="btn-text">同步步数</span>
+                                <span class="btn-loading" style="display:none;">
+                                    <svg class="spinner" viewBox="0 0 24 24">
+                                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="31.4 31.4"/>
+                                    </svg>
+                                    同步中...
+                                </span>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="tab-content" id="history-tab" style="display:none;">
+                    <div class="history-header">
+                        <h3>步数修改历史</h3>
+                        <select id="history-account-filter" onchange="loadHistory()">
+                            <option value="">全部账号</option>
+                        </select>
+                    </div>
+                    <div class="table-wrapper">
+                        <table class="history-table">
+                            <thead>
+                                <tr id="history-table-head">
+                                    <th>账号</th>
+                                    <th>步数</th>
+                                    <th>类型</th>
+                                    <th>结果</th>
+                                    <th>时间</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-list"></tbody>
+                        </table>
+                    </div>
+                    <div class="history-pagination" id="history-pagination"></div>
+                </div>
+
+                <div class="tab-content" id="tasks-tab" style="display:none;">
+                    <div class="section-header">
+                        <h3>定时任务</h3>
+                        <button class="btn btn-primary btn-sm" onclick="showAddTaskModal()">添加任务</button>
+                    </div>
+                    <div class="tasks-list" id="tasks-list"></div>
+                    <div class="empty-state" id="tasks-empty" style="display:none;">
+                        <p>暂无定时任务</p>
+                        <button class="btn btn-outline" onclick="showAddTaskModal()">添加第一个任务</button>
+                    </div>
+                </div>
+
+                <div id="main-result" class="result" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="add-account-modal" style="display: none;">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>添加账号</h3>
+                <button class="modal-close" onclick="hideAddAccountModal()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="add-account-form">
+                    <div class="form-group">
+                        <label for="account-user">账号（邮箱或手机号）</label>
+                        <input type="text" id="account-user" placeholder="请输入小米运动账号" required>
+                    </div>
+                    <div class="form-group password-input-group">
+                        <label for="account-password">密码</label>
+                        <div class="input-wrapper">
+                            <input type="password" id="account-password" placeholder="请输入密码" required>
+                            <button type="button" class="toggle-password" onclick="toggleAccountPassword()">
+                                <svg class="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                    <circle cx="12" cy="12" r="3"/>
+                                </svg>
+                                <svg class="eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none;">
+                                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                                    <line x1="1" y1="1" x2="23" y2="23"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="hideAddAccountModal()">取消</button>
+                <button class="btn btn-primary" onclick="addAccount()" id="add-account-btn">
+                    <span class="btn-text">添加</span>
+                    <span class="btn-loading" style="display:none;">
+                        <svg class="spinner" viewBox="0 0 24 24">
+                            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="31.4 31.4"/>
+                        </svg>
+                        添加中...
+                    </span>
+                </button>
+            </div>
+            <div id="add-account-result" class="result" style="display: none;margin: 16px;"></div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="add-code-modal" style="display: none;">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>添加验证码</h3>
+                <button class="modal-close" onclick="hideAddCodeModal()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="add-code-form">
+                    <div class="form-group">
+                        <label for="code-value">验证码（1-16位字母或数字）</label>
+                        <input type="text" id="code-value" placeholder="请输入验证码" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="hideAddCodeModal()">取消</button>
+                <button class="btn btn-primary" onclick="addCode()" id="add-code-btn">
+                    <span class="btn-text">添加</span>
+                    <span class="btn-loading" style="display:none;">
+                        <svg class="spinner" viewBox="0 0 24 24">
+                            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="31.4 31.4"/>
+                        </svg>
+                        添加中...
+                    </span>
+                </button>
+            </div>
+            <div id="add-code-result" class="result" style="display: none;margin: 16px;"></div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="batch-step-modal" style="display: none;">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>批量修改步数</h3>
+                <button class="modal-close" onclick="hideBatchStepModal()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="selected-accounts-info">
+                    已选择 <span class="count" id="batch-selected-count">0</span> 个账号
+                </div>
+                <div class="form-group">
+                    <label>步数类型</label>
+                    <div class="step-type-options">
+                        <label class="radio-label">
+                            <input type="radio" name="stepType" value="fixed" checked onchange="toggleStepType()">
+                            <span>固定步数</span>
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="stepType" value="random" onchange="toggleStepType()">
+                            <span>随机范围</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="form-group step-fixed-group">
+                    <label for="batch-step">目标步数</label>
+                    <input type="number" id="batch-step" placeholder="请输入步数" min="0">
+                </div>
+                <div class="form-group step-random-group" style="display:none;">
+                    <label>步数范围</label>
+                    <div class="range-inputs">
+                        <input type="number" id="step-min" placeholder="最小值">
+                        <span class="range-separator">-</span>
+                        <input type="number" id="step-max" placeholder="最大值">
+                    </div>
+                </div>
+                <div class="batch-results" id="batch-results" style="display:none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="hideBatchStepModal()">取消</button>
+                <button class="btn btn-success" onclick="executeBatchStep()" id="batch-step-btn">
+                    <span class="btn-text">开始修改</span>
+                    <span class="btn-loading" style="display:none;">
+                        <svg class="spinner" viewBox="0 0 24 24">
+                            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="31.4 31.4"/>
+                        </svg>
+                        修改中...
+                    </span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="add-task-modal" style="display: none;">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>添加定时任务</h3>
+                <button class="modal-close" onclick="hideAddTaskModal()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="task-account">选择账号</label>
+                    <select id="task-account" required>
+                        <option value="">请选择账号</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>步数类型</label>
+                    <div class="step-type-options">
+                        <label class="radio-label">
+                            <input type="radio" name="taskStepType" value="fixed" checked onchange="toggleTaskStepType()">
+                            <span>固定步数</span>
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="taskStepType" value="random" onchange="toggleTaskStepType()">
+                            <span>随机范围</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="form-group task-fixed-group">
+                    <label for="task-step-value">步数</label>
+                    <input type="number" id="task-step-value" placeholder="请输入步数">
+                </div>
+                <div class="form-group task-random-group" style="display:none;">
+                    <label>步数范围</label>
+                    <div class="range-inputs">
+                        <input type="number" id="task-step-min" placeholder="最小值">
+                        <span class="range-separator">-</span>
+                        <input type="number" id="task-step-max" placeholder="最大值">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="task-time">执行时间</label>
+                    <input type="time" id="task-time" value="08:00">
+                    <small class="help-text">每天定时执行一次</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="hideAddTaskModal()">取消</button>
+                <button class="btn btn-primary" onclick="createTask()" id="create-task-btn">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="logs-modal" style="display: none;">
+        <div class="modal modal-lg">
+            <div class="modal-header">
+                <h3>操作日志</h3>
+                <button class="modal-close" onclick="hideLogsModal()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="logs-filters">
+                    <select id="log-action-filter" onchange="loadLogs()">
+                        <option value="">全部操作</option>
+                        <option value="login">登录</option>
+                        <option value="add_account">添加账号</option>
+                        <option value="delete_account">删除账号</option>
+                        <option value="set_step">修改步数</option>
+                        <option value="batch_set_step">批量修改</option>
+                        <option value="create_task">创建任务</option>
+                        <option value="delete_task">删除任务</option>
+                    </select>
+                    <input type="date" id="log-date-filter" onchange="loadLogs()">
+                </div>
+                <div class="table-wrapper">
+                    <table class="logs-table">
+                        <thead>
+                            <tr>
+                                <th>时间</th>
+                                <th>用户</th>
+                                <th>操作</th>
+                                <th>详情</th>
+                                <th>IP</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logs-table-body"></tbody>
+                    </table>
+                </div>
+                <div class="history-pagination" id="logs-pagination"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>

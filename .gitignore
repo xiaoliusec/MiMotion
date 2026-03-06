@@ -1,0 +1,6 @@
+IMPLEMENTATION_PLAN.md
+jwt_secret.txt
+*.db
+__pycache__/
+.DS_Store
+.ruff_cache/
