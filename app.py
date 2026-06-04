@@ -90,6 +90,17 @@ def init_db():
         )
     """)
 
+    cursor.execute("PRAGMA table_info(step_history)")
+    step_history_cols = {row[1] for row in cursor.fetchall()}
+    if "task_id" not in step_history_cols:
+        cursor.execute(
+            "ALTER TABLE step_history ADD COLUMN task_id INTEGER REFERENCES scheduled_tasks(id)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_step_history_task ON step_history(task_id)"
+        )
+        logger.info("step_history 已添加 task_id 列")
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS operation_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1444,6 +1455,13 @@ def handle_tasks():
         tasks = [dict(row) for row in cursor.fetchall()]
         for t in tasks:
             t["schedule_desc"] = build_schedule_desc(t)
+            cursor.execute(
+                "SELECT result, error_msg, created_at FROM step_history "
+                "WHERE task_id=? AND user_id=? ORDER BY created_at DESC LIMIT 1",
+                (t["id"], request.db_user_id),
+            )
+            last = cursor.fetchone()
+            t["last_run"] = dict(last) if last else None
         conn.close()
         return jsonify({"tasks": tasks})
 
@@ -1678,6 +1696,80 @@ def update_task():
     return jsonify({"success": True})
 
 
+@app.route("/api/task/<int:task_id>", methods=["POST"])
+@jwt_required
+def get_task(task_id):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT t.*, a.user as account_user
+        FROM scheduled_tasks t
+        LEFT JOIN accounts a ON t.account_id = a.id
+        WHERE t.id = ? AND t.user_id = ?
+    """,
+        (task_id, request.db_user_id),
+    )
+    row = cursor.fetchone()
+    conn.close()
+    if not row:
+        return jsonify({"error": "任务不存在"}), 404
+    task = dict(row)
+    task["schedule_desc"] = build_schedule_desc(task)
+    task["times_list"] = parse_json_field(task.get("times"), [])
+    task["weekdays_list"] = parse_json_field(task.get("weekdays"), [])
+    task["month_days_list"] = parse_json_field(task.get("month_days"), [])
+    return jsonify({"task": task})
+
+
+@app.route("/api/task/<int:task_id>/history", methods=["POST"])
+@jwt_required
+def get_task_history(task_id):
+    data = request.json or {}
+    page = data.get("page", 1)
+    page_size = data.get("pageSize", 20)
+    try:
+        page = validate_int(page, "页码")
+        page_size = validate_int(page_size, "每页数量")
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    offset = (page - 1) * page_size
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT id FROM scheduled_tasks WHERE id = ? AND user_id = ?",
+        (task_id, request.db_user_id),
+    )
+    if not cursor.fetchone():
+        conn.close()
+        return jsonify({"error": "任务不存在"}), 404
+
+    cursor.execute(
+        """
+        SELECT id, step_value, is_random, result, error_msg, created_at
+        FROM step_history
+        WHERE task_id = ? AND user_id = ?
+        ORDER BY created_at DESC
+        LIMIT ? OFFSET ?
+    """,
+        (task_id, request.db_user_id, page_size, offset),
+    )
+    history = [dict(row) for row in cursor.fetchall()]
+
+    cursor.execute(
+        "SELECT COUNT(*) as total FROM step_history WHERE task_id = ? AND user_id = ?",
+        (task_id, request.db_user_id),
+    )
+    total = cursor.fetchone()["total"]
+    conn.close()
+
+    return jsonify(
+        {"history": history, "total": total, "page": page, "pageSize": page_size}
+    )
+
+
 @app.route("/api/task/delete", methods=["POST"])
 @jwt_required
 def delete_task():
@@ -1793,12 +1885,13 @@ def execute_scheduled_task(task_id):
     if not app_token or not user_id_zepp:
         cursor.execute(
             """
-            INSERT INTO step_history (user_id, account_id, step_value, is_random, is_batch, result, error_msg)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO step_history (user_id, account_id, task_id, step_value, is_random, is_batch, result, error_msg)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 task["user_id"],
                 task["account_id"],
+                task_id,
                 step_value,
                 1 if task_type == "random" else 0,
                 0,
@@ -1844,12 +1937,13 @@ def execute_scheduled_task(task_id):
 
     cursor.execute(
         """
-        INSERT INTO step_history (user_id, account_id, step_value, is_random, is_batch, result, error_msg)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO step_history (user_id, account_id, task_id, step_value, is_random, is_batch, result, error_msg)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """,
         (
             task["user_id"],
             task["account_id"],
+            task_id,
             step_value,
             1 if task_type == "random" else 0,
             0,

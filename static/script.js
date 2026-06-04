@@ -854,7 +854,19 @@ function renderTasks(tasks) {
         const accountUser = task.account_user ? formatUserDisplay(task.account_user) : '未知';
         const taskType = task.task_type === 'random' ? '<span class="tag tag-random">随机范围</span>' : '<span class="tag tag-fixed">固定步数</span>';
         const stepDisplay = task.task_type === 'random' ? `${task.step_value} 步` : `${parseInt(task.step_value).toLocaleString()} 步`;
-        
+
+        let lastRunHtml = '<div class="task-last-run">最后执行: <span class="muted">暂无记录</span></div>';
+        if (task.last_run) {
+            const lr = task.last_run;
+            const time = (lr.created_at || '').substring(0, 19).replace('T', ' ');
+            if (lr.result === 'success') {
+                lastRunHtml = `<div class="task-last-run">最后执行: <span class="muted">${time}</span> <span class="run-badge run-success">✓ 成功</span></div>`;
+            } else {
+                const err = lr.error_msg ? ` <span class="muted">- ${escapeHtml(lr.error_msg)}</span>` : '';
+                lastRunHtml = `<div class="task-last-run">最后执行: <span class="muted">${time}</span> <span class="run-badge run-error">✗ 失败</span>${err}</div>`;
+            }
+        }
+
         return `
             <div class="task-item ${task.is_active ? '' : 'disabled'}">
                 <div class="task-info">
@@ -864,13 +876,26 @@ function renderTasks(tasks) {
                         <span class="task-range">${stepDisplay}</span>
                         <span class="task-time">${task.schedule_desc || ''}</span>
                     </div>
+                    ${lastRunHtml}
                 </div>
                 <div class="task-actions">
                     <label class="switch">
                         <input type="checkbox" ${task.is_active ? 'checked' : ''} onchange="toggleTask(${task.id})">
                         <span class="slider"></span>
                     </label>
-                    <button class="btn-icon" onclick="deleteTask(${task.id})">
+                    <button class="btn-icon" title="编辑" onclick="editTask(${task.id})">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 20h9"/>
+                            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>
+                        </svg>
+                    </button>
+                    <button class="btn-icon" title="历史" onclick="showTaskHistory(${task.id})">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                    </button>
+                    <button class="btn-icon" title="删除" onclick="deleteTask(${task.id})">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="3 6 5 6 21 6"/>
                             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -909,10 +934,16 @@ function showAddTaskModal() {
     addTimeChip('08:00');
     toggleTaskStepType();
     toggleTaskFreq();
+    editingTaskId = null;
+    document.querySelector('#add-task-modal h3').textContent = '添加定时任务';
+    document.getElementById('create-task-btn').onclick = createTask;
 }
 
 function hideAddTaskModal() {
     document.getElementById('add-task-modal').style.display = 'none';
+    editingTaskId = null;
+    document.querySelector('#add-task-modal h3').textContent = '添加定时任务';
+    document.getElementById('create-task-btn').onclick = createTask;
 }
 
 function toggleTaskStepType() {
@@ -1050,6 +1081,227 @@ async function createTask() {
     } finally {
         showLoading('create-task-btn', false);
     }
+}
+
+let editingTaskId = null;
+let taskHistoryPage = 1;
+let currentHistoryTaskId = null;
+
+function escapeHtml(s) {
+    if (s == null) return '';
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+async function editTask(taskId) {
+    try {
+        const r = await fetch(`${API_BASE}/task/${taskId}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${jwtToken}` }
+        });
+        const data = await r.json();
+        if (data.error) {
+            alert(data.error);
+            return;
+        }
+        const task = data.task;
+        showAddTaskModal();
+        populateTaskForm(task);
+        editingTaskId = taskId;
+        document.querySelector('#add-task-modal h3').textContent = `编辑定时任务 #${taskId}`;
+        const submitBtn = document.getElementById('create-task-btn');
+        submitBtn.onclick = updateTask;
+    } catch (err) {
+        alert('加载任务失败: ' + err.message);
+    }
+}
+
+function populateTaskForm(task) {
+    document.querySelector(`input[name="taskFreq"][value="${task.freq}"]`).checked = true;
+    toggleTaskFreq();
+
+    if (task.freq === 'daily') {
+        const chips = document.getElementById('task-time-chips');
+        chips.innerHTML = '';
+        (task.times_list || []).forEach(t => addTimeChip(t));
+    } else if (task.freq === 'weekly') {
+        document.querySelectorAll('.weekday-toggle').forEach(b => b.classList.remove('active'));
+        (task.weekdays_list || []).forEach(d => {
+            const btn = document.querySelector(`.weekday-toggle[data-day="${d}"]`);
+            if (btn) btn.classList.add('active');
+        });
+        document.getElementById('task-weekly-time').value = task.time_of_day || '08:00';
+    } else if (task.freq === 'monthly') {
+        document.getElementById('task-month-days').value = (task.month_days_list || []).join(',');
+        document.getElementById('task-monthly-time').value = task.time_of_day || '08:00';
+    } else if (task.freq === 'once') {
+        const rd = task.run_datetime || '';
+        const [date, time] = rd.split('T');
+        document.getElementById('task-once-date').value = date || '';
+        document.getElementById('task-once-time').value = (time || '').slice(0, 5);
+    }
+
+    if (task.task_type === 'fixed') {
+        document.querySelector('input[name="taskStepType"][value="fixed"]').checked = true;
+        document.getElementById('task-step-value').value = task.step_value;
+    } else {
+        document.querySelector('input[name="taskStepType"][value="random"]').checked = true;
+        const parts = (task.step_value || '').split('-');
+        document.getElementById('task-step-min').value = parts[0] || '';
+        document.getElementById('task-step-max').value = parts[1] || '';
+    }
+    toggleTaskStepType();
+
+    document.getElementById('task-account').value = task.account_id;
+}
+
+async function updateTask() {
+    if (!editingTaskId) {
+        alert('编辑模式异常');
+        return;
+    }
+    const accountId = document.getElementById('task-account').value;
+    const taskType = document.querySelector('input[name="taskStepType"]:checked').value;
+    const stepValue = taskType === 'fixed'
+        ? document.getElementById('task-step-value').value.trim()
+        : `${document.getElementById('task-step-min').value.trim()}-${document.getElementById('task-step-max').value.trim()}`;
+    const freq = document.querySelector('input[name="taskFreq"]:checked').value;
+
+    if (!accountId) { alert('请选择账号'); return; }
+    if (!stepValue) { alert('请输入步数'); return; }
+    if (taskType === 'random' && (!document.getElementById('task-step-min').value || !document.getElementById('task-step-max').value)) {
+        alert('请输入步数范围'); return;
+    }
+
+    let payload = {};
+    if (freq === 'daily') {
+        const times = getTimeChips();
+        if (times.length === 0) { alert('请至少添加一个执行时刻'); return; }
+        payload.times = times;
+    } else if (freq === 'weekly') {
+        const weekdays = getSelectedWeekdays();
+        if (weekdays.length === 0) { alert('请至少选择一个星期'); return; }
+        payload.weekdays = weekdays;
+        payload.time = document.getElementById('task-weekly-time').value;
+    } else if (freq === 'monthly') {
+        const raw = document.getElementById('task-month-days').value.trim();
+        if (!raw) { alert('请输入日期'); return; }
+        const days = raw.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+        if (days.length === 0) { alert('日期格式错误'); return; }
+        payload.monthDays = days;
+        payload.time = document.getElementById('task-monthly-time').value;
+    } else if (freq === 'once') {
+        const date = document.getElementById('task-once-date').value;
+        const time = document.getElementById('task-once-time').value;
+        if (!date || !time) { alert('请选择执行日期和时间'); return; }
+        payload.runDatetime = `${date}T${time}:00`;
+    }
+
+    try {
+        showLoading('create-task-btn', true);
+        const response = await fetch(`${API_BASE}/task/update`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${jwtToken}`
+            },
+            body: JSON.stringify({
+                id: editingTaskId,
+                taskType,
+                stepValue,
+                freq,
+                payload
+            })
+        });
+        const data = await response.json();
+        if (data.success) {
+            hideAddTaskModal();
+            loadTasks();
+        } else {
+            alert(data.error);
+        }
+    } catch (error) {
+        alert('更新任务失败: ' + error.message);
+    } finally {
+        showLoading('create-task-btn', false);
+    }
+}
+
+async function showTaskHistory(taskId) {
+    currentHistoryTaskId = taskId;
+    taskHistoryPage = 1;
+    document.getElementById('task-history-modal').style.display = 'flex';
+    document.getElementById('task-history-title').textContent = `任务 #${taskId} 历史`;
+    try {
+        const r = await fetch(`${API_BASE}/task/${taskId}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${jwtToken}` }
+        });
+        const data = await r.json();
+        if (data.task) {
+            const t = data.task;
+            const accountUser = t.account_user ? formatUserDisplay(t.account_user) : '未知';
+            document.getElementById('task-history-meta').innerHTML = `
+                <div><span class="meta-label">账号</span>${escapeHtml(accountUser)}</div>
+                <div><span class="meta-label">计划</span>${escapeHtml(t.schedule_desc || '')}</div>
+                <div><span class="meta-label">状态</span>${t.is_active ? '<span class="tag tag-success">启用</span>' : '<span class="tag tag-error">已禁用</span>'}</div>
+            `;
+        }
+    } catch (err) {
+        console.error('加载任务详情失败:', err);
+    }
+    await loadTaskHistory();
+}
+
+function hideTaskHistoryModal() {
+    document.getElementById('task-history-modal').style.display = 'none';
+}
+
+async function loadTaskHistory() {
+    try {
+        const response = await fetch(`${API_BASE}/task/${currentHistoryTaskId}/history`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${jwtToken}`
+            },
+            body: JSON.stringify({ page: taskHistoryPage, pageSize: 20 })
+        });
+        const data = await response.json();
+        if (data.error) { alert(data.error); return; }
+        renderTaskHistory(data.history || [], data.total);
+        renderPagination('task-history-pagination', data.page, Math.ceil(data.total / data.pageSize), (page) => {
+            taskHistoryPage = page;
+            loadTaskHistory();
+        });
+    } catch (error) {
+        console.error('加载任务历史失败:', error);
+    }
+}
+
+function renderTaskHistory(history, total) {
+    const tbody = document.getElementById('task-history-list');
+    if (history.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#999;">暂无执行记录</td></tr>';
+        return;
+    }
+    tbody.innerHTML = history.map(h => {
+        const time = (h.created_at || '').substring(0, 19).replace('T', ' ');
+        const step = parseInt(h.step_value).toLocaleString();
+        const result = h.result === 'success'
+            ? '<span class="tag tag-success">成功</span>'
+            : '<span class="tag tag-error">失败</span>';
+        return `<tr>
+            <td>${time}</td>
+            <td>${step}</td>
+            <td>${result}</td>
+            <td>${escapeHtml(h.error_msg || '-')}</td>
+        </tr>`;
+    }).join('');
 }
 
 async function toggleTask(taskId) {

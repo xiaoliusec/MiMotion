@@ -526,6 +526,40 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="task-history-modal" style="display: none;">
+        <div class="modal modal-lg">
+            <div class="modal-header">
+                <h3 id="task-history-title">任务历史</h3>
+                <button class="modal-close" onclick="hideTaskHistoryModal()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="task-history-meta" class="task-history-meta"></div>
+                <div class="table-wrapper">
+                    <table class="logs-table">
+                        <thead>
+                            <tr>
+                                <th>时间</th>
+                                <th>步数</th>
+                                <th>结果</th>
+                                <th>错误信息</th>
+                            </tr>
+                        </thead>
+                        <tbody id="task-history-list"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <div id="task-history-pagination" class="pagination"></div>
+                <button class="btn btn-outline" onclick="hideTaskHistoryModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
     <div class="modal-overlay" id="logs-modal" style="display: none;">
         <div class="modal modal-lg">
             <div class="modal-header">
