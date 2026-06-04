@@ -1,6 +1,7 @@
 # -*- coding: utf8 -*-
 import os
 import re
+import json
 import secrets
 import sqlite3
 import random
@@ -109,7 +110,12 @@ def init_db():
             account_id INTEGER NOT NULL,
             task_type TEXT NOT NULL,
             step_value TEXT NOT NULL,
-            execution_time TEXT NOT NULL,
+            freq TEXT NOT NULL,
+            times TEXT,
+            weekdays TEXT,
+            month_days TEXT,
+            run_datetime TEXT,
+            time_of_day TEXT,
             is_active INTEGER DEFAULT 1,
             last_run_at TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -117,6 +123,32 @@ def init_db():
             FOREIGN KEY (account_id) REFERENCES accounts(id)
         )
     """)
+
+    cursor.execute("PRAGMA table_info(scheduled_tasks)")
+    existing_cols = {row[1] for row in cursor.fetchall()}
+    if "freq" not in existing_cols:
+        logger.warning("检测到旧版 scheduled_tasks 表，正在重建（旧任务数据已清空）")
+        cursor.execute("DROP TABLE scheduled_tasks")
+        cursor.execute("""
+            CREATE TABLE scheduled_tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                account_id INTEGER NOT NULL,
+                task_type TEXT NOT NULL,
+                step_value TEXT NOT NULL,
+                freq TEXT NOT NULL,
+                times TEXT,
+                weekdays TEXT,
+                month_days TEXT,
+                run_datetime TEXT,
+                time_of_day TEXT,
+                is_active INTEGER DEFAULT 1,
+                last_run_at TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                FOREIGN KEY (account_id) REFERENCES accounts(id)
+            )
+        """)
 
     cursor.execute("SELECT COUNT(*) FROM users")
     count = cursor.fetchone()[0]
@@ -257,6 +289,112 @@ def format_user_display(user):
 def get_beijing_now():
     beijing_tz = pytz.timezone("Asia/Shanghai")
     return datetime.now(beijing_tz)
+
+
+WEEKDAY_NAMES_CN = ["日", "一", "二", "三", "四", "五", "六"]
+FREQ_DAILY = "daily"
+FREQ_WEEKLY = "weekly"
+FREQ_MONTHLY = "monthly"
+FREQ_ONCE = "once"
+VALID_FREQS = {FREQ_DAILY, FREQ_WEEKLY, FREQ_MONTHLY, FREQ_ONCE}
+
+
+def parse_json_field(raw, default):
+    if raw is None or raw == "":
+        return default
+    try:
+        return json.loads(raw)
+    except (ValueError, TypeError):
+        return default
+
+
+def _is_valid_hhmm(s):
+    if not isinstance(s, str) or len(s) != 5 or s[2] != ":":
+        return False
+    h, m = s.split(":")
+    if not (h.isdigit() and m.isdigit()):
+        return False
+    h, m = int(h), int(m)
+    return 0 <= h <= 23 and 0 <= m <= 59
+
+
+def _is_valid_hhmm_list(lst):
+    return isinstance(lst, list) and len(lst) >= 1 and all(_is_valid_hhmm(x) for x in lst)
+
+
+def _is_valid_int_list(lst, lo, hi):
+    return (
+        isinstance(lst, list)
+        and len(lst) >= 1
+        and all(isinstance(x, int) and not isinstance(x, bool) and lo <= x <= hi for x in lst)
+    )
+
+
+def validate_schedule_freq(freq, payload):
+    if freq not in VALID_FREQS:
+        return False, "不支持的执行频率"
+
+    if freq == FREQ_DAILY:
+        times = payload.get("times")
+        if not _is_valid_hhmm_list(times):
+            return False, "请至少添加一个有效时刻（HH:MM）"
+        return True, None
+
+    if freq == FREQ_WEEKLY:
+        weekdays = payload.get("weekdays")
+        if not _is_valid_int_list(weekdays, 0, 6):
+            return False, "请选择至少一个星期几（0=周日，6=周六）"
+        time_str = payload.get("time")
+        if not _is_valid_hhmm(time_str):
+            return False, "请输入有效时间（HH:MM）"
+        return True, None
+
+    if freq == FREQ_MONTHLY:
+        month_days = payload.get("monthDays")
+        if not _is_valid_int_list(month_days, 1, 31):
+            return False, "请输入至少一个有效日期（1-31）"
+        time_str = payload.get("time")
+        if not _is_valid_hhmm(time_str):
+            return False, "请输入有效时间（HH:MM）"
+        return True, None
+
+    run_datetime = payload.get("runDatetime")
+    if not run_datetime or not isinstance(run_datetime, str):
+        return False, "请选择执行日期时间"
+    try:
+        dt = datetime.fromisoformat(run_datetime)
+    except ValueError:
+        return False, "执行日期时间格式错误"
+    beijing_tz = pytz.timezone("Asia/Shanghai")
+    if dt.tzinfo is None:
+        dt = beijing_tz.localize(dt)
+    if dt <= datetime.now(beijing_tz):
+        return False, "执行时间必须是将来的时间"
+    return True, None
+
+
+def build_schedule_desc(task):
+    freq = task.get("freq")
+    if freq == FREQ_DAILY:
+        times = parse_json_field(task.get("times"), [])
+        return "每天 " + " / ".join(times) if times else "每天"
+    if freq == FREQ_WEEKLY:
+        weekdays = parse_json_field(task.get("weekdays"), [])
+        cn = "、".join("周" + WEEKDAY_NAMES_CN[d] for d in sorted(weekdays))
+        return f"每{cn} {task.get('time_of_day') or ''}".strip()
+    if freq == FREQ_MONTHLY:
+        days = parse_json_field(task.get("month_days"), [])
+        cn = "、".join(str(d) for d in days)
+        suffix = "日"
+        return f"每月 {cn}{suffix} {task.get('time_of_day') or ''}".strip()
+    if freq == FREQ_ONCE:
+        dt_str = task.get("run_datetime") or ""
+        try:
+            dt = datetime.fromisoformat(dt_str)
+            return "仅一次 " + dt.strftime("%Y-%m-%d %H:%M")
+        except ValueError:
+            return f"仅一次 {dt_str}"
+    return "未知计划"
 
 
 @app.route("/")
@@ -1304,6 +1442,8 @@ def handle_tasks():
             (request.db_user_id,),
         )
         tasks = [dict(row) for row in cursor.fetchall()]
+        for t in tasks:
+            t["schedule_desc"] = build_schedule_desc(t)
         conn.close()
         return jsonify({"tasks": tasks})
 
@@ -1311,34 +1451,52 @@ def handle_tasks():
         account_id = data.get("accountId")
         task_type = data.get("taskType", "fixed")
         step_value = data.get("stepValue", "").strip()
-        execution_time = data.get("executionTime", "08:00").strip()
+        freq = data.get("freq", "").strip()
+        payload = data.get("payload") or {}
 
         if not account_id:
+            conn.close()
             return jsonify({"error": "请选择账号"}), 400
 
         if not step_value:
+            conn.close()
             return jsonify({"error": "请输入步数"}), 400
 
         if task_type == "fixed":
             if not step_value.isdigit() or int(step_value) <= 0:
+                conn.close()
                 return jsonify({"error": "步数必须大于0"}), 400
         elif task_type == "random":
             if "-" not in step_value:
-                return jsonify({"error": "随机步数请输入范围，如：10000-20000"}), 400
+                conn.close()
+                return jsonify(
+                    {"error": "随机步数请输入范围，如：10000-20000"}
+                ), 400
             try:
                 parts = step_value.split("-")
                 min_step = int(parts[0])
                 max_step = int(parts[1])
                 if min_step <= 0 or max_step <= 0 or min_step >= max_step:
+                    conn.close()
                     return jsonify(
                         {"error": "步数范围最小值必须大于0，且最大值要大于最小值"}
                     ), 400
             except:
+                conn.close()
                 return jsonify({"error": "步数范围格式错误"}), 400
+        else:
+            conn.close()
+            return jsonify({"error": "无效的步数类型"}), 400
+
+        ok, msg = validate_schedule_freq(freq, payload)
+        if not ok:
+            conn.close()
+            return jsonify({"error": msg}), 400
 
         try:
             account_id = validate_int(account_id, "账号ID")
         except ValueError as e:
+            conn.close()
             return jsonify({"error": str(e)}), 400
 
         cursor.execute(
@@ -1349,22 +1507,62 @@ def handle_tasks():
             conn.close()
             return jsonify({"error": "账号不存在"}), 404
 
+        col_times, col_weekdays, col_month_days, col_run_datetime, col_time_of_day = (
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        if freq == FREQ_DAILY:
+            col_times = json.dumps(payload.get("times"), ensure_ascii=False)
+        elif freq == FREQ_WEEKLY:
+            col_weekdays = json.dumps(
+                sorted(set(payload.get("weekdays"))), ensure_ascii=False
+            )
+            col_time_of_day = payload.get("time")
+        elif freq == FREQ_MONTHLY:
+            col_month_days = json.dumps(
+                sorted(set(payload.get("monthDays"))), ensure_ascii=False
+            )
+            col_time_of_day = payload.get("time")
+        elif freq == FREQ_ONCE:
+            col_run_datetime = payload.get("runDatetime")
+
         cursor.execute(
             """
-            INSERT INTO scheduled_tasks (user_id, account_id, task_type, step_value, execution_time)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO scheduled_tasks
+                (user_id, account_id, task_type, step_value, freq, times, weekdays, month_days, run_datetime, time_of_day)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-            (request.db_user_id, account_id, task_type, step_value, execution_time),
+            (
+                request.db_user_id,
+                account_id,
+                task_type,
+                step_value,
+                freq,
+                col_times,
+                col_weekdays,
+                col_month_days,
+                col_run_datetime,
+                col_time_of_day,
+            ),
         )
         conn.commit()
         task_id = cursor.lastrowid
+
+        cursor.execute(
+            "SELECT * FROM scheduled_tasks WHERE id = ?", (task_id,)
+        )
+        task_row = dict(cursor.fetchone())
         conn.close()
 
+        schedule_desc = build_schedule_desc(task_row)
         log_operation(
             request.db_user_id,
             get_user_code(request.db_user_id),
             "create_task",
-            f"创建定时任务: 账号{account_id}, 步数{step_value}, 时间{execution_time}",
+            f"创建定时任务: 账号{account_id}, 步数{step_value}, 计划{schedule_desc}",
         )
         schedule_task(task_id)
 
@@ -1381,7 +1579,8 @@ def update_task():
     task_id = data.get("id")
     task_type = data.get("taskType")
     step_value = data.get("stepValue")
-    execution_time = data.get("executionTime")
+    freq = data.get("freq")
+    payload = data.get("payload") or {}
 
     try:
         task_id = validate_int(task_id, "任务ID")
@@ -1403,16 +1602,61 @@ def update_task():
     params = []
 
     if task_type:
+        if task_type not in ("fixed", "random"):
+            conn.close()
+            return jsonify({"error": "无效的步数类型"}), 400
         update_fields.append("task_type = ?")
         params.append(task_type)
 
     if step_value:
+        if task_type == "fixed" and (not step_value.isdigit() or int(step_value) <= 0):
+            conn.close()
+            return jsonify({"error": "步数必须大于0"}), 400
         update_fields.append("step_value = ?")
         params.append(step_value)
 
-    if execution_time:
-        update_fields.append("execution_time = ?")
-        params.append(execution_time)
+    if freq:
+        ok, msg = validate_schedule_freq(freq, payload)
+        if not ok:
+            conn.close()
+            return jsonify({"error": msg}), 400
+        update_fields.append("freq = ?")
+        params.append(freq)
+        col_times, col_weekdays, col_month_days, col_run_datetime, col_time_of_day = (
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        if freq == FREQ_DAILY:
+            col_times = json.dumps(payload.get("times"), ensure_ascii=False)
+        elif freq == FREQ_WEEKLY:
+            col_weekdays = json.dumps(
+                sorted(set(payload.get("weekdays"))), ensure_ascii=False
+            )
+            col_time_of_day = payload.get("time")
+        elif freq == FREQ_MONTHLY:
+            col_month_days = json.dumps(
+                sorted(set(payload.get("monthDays"))), ensure_ascii=False
+            )
+            col_time_of_day = payload.get("time")
+        elif freq == FREQ_ONCE:
+            col_run_datetime = payload.get("runDatetime")
+        update_fields += [
+            "times = ?",
+            "weekdays = ?",
+            "month_days = ?",
+            "run_datetime = ?",
+            "time_of_day = ?",
+        ]
+        params += [
+            col_times,
+            col_weekdays,
+            col_month_days,
+            col_run_datetime,
+            col_time_of_day,
+        ]
 
     if not update_fields:
         conn.close()
@@ -1620,6 +1864,14 @@ def execute_scheduled_task(task_id):
         (get_beijing_now().isoformat(), task_id),
     )
     conn.commit()
+
+    if task["freq"] == FREQ_ONCE:
+        cursor.execute(
+            "UPDATE scheduled_tasks SET is_active = 0 WHERE id = ?", (task_id,)
+        )
+        conn.commit()
+        logger.info(f"一次性任务 {task_id} 已执行，自动禁用")
+
     conn.close()
 
 
@@ -1628,7 +1880,7 @@ def schedule_task(task_id):
     cursor = conn.cursor()
 
     cursor.execute(
-        "SELECT execution_time, is_active FROM scheduled_tasks WHERE id = ?", (task_id,)
+        "SELECT * FROM scheduled_tasks WHERE id = ?", (task_id,)
     )
     row = cursor.fetchone()
     conn.close()
@@ -1636,24 +1888,96 @@ def schedule_task(task_id):
     if not row or row["is_active"] != 1:
         return
 
-    execution_time = row["execution_time"]
-    hour, minute = map(int, execution_time.split(":"))
-
+    freq = row["freq"]
     job_id = f"task_{task_id}"
 
     if job_id in scheduled_jobs:
         remove_scheduled_task(task_id)
 
-    scheduler.add_job(
-        func=execute_scheduled_task,
-        trigger="cron",
-        hour=hour,
-        minute=minute,
-        args=[task_id],
-        id=job_id,
-        replace_existing=True,
-    )
+    if freq == FREQ_DAILY:
+        times = parse_json_field(row["times"], [])
+        if not times:
+            logger.warning(f"任务 {task_id} (daily) 没有 times 配置，跳过调度")
+            return
+        hours = sorted({t.split(":")[0] for t in times})
+        minutes = sorted({t.split(":")[1] for t in times})
+        scheduler.add_job(
+            func=execute_scheduled_task,
+            trigger="cron",
+            hour=",".join(hours),
+            minute=",".join(minutes),
+            args=[task_id],
+            id=job_id,
+            replace_existing=True,
+        )
+
+    elif freq == FREQ_WEEKLY:
+        weekdays = parse_json_field(row["weekdays"], [])
+        time_str = row["time_of_day"] or "08:00"
+        if not weekdays:
+            logger.warning(f"任务 {task_id} (weekly) 没有 weekdays 配置，跳过调度")
+            return
+        dow_map = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]
+        dow = ",".join(dow_map[d] for d in sorted(weekdays))
+        hour, minute = time_str.split(":")
+        scheduler.add_job(
+            func=execute_scheduled_task,
+            trigger="cron",
+            day_of_week=dow,
+            hour=hour,
+            minute=minute,
+            args=[task_id],
+            id=job_id,
+            replace_existing=True,
+        )
+
+    elif freq == FREQ_MONTHLY:
+        month_days = parse_json_field(row["month_days"], [])
+        time_str = row["time_of_day"] or "08:00"
+        if not month_days:
+            logger.warning(f"任务 {task_id} (monthly) 没有 month_days 配置，跳过调度")
+            return
+        days = ",".join(str(d) for d in sorted(month_days))
+        hour, minute = time_str.split(":")
+        scheduler.add_job(
+            func=execute_scheduled_task,
+            trigger="cron",
+            day=days,
+            hour=hour,
+            minute=minute,
+            args=[task_id],
+            id=job_id,
+            replace_existing=True,
+        )
+
+    elif freq == FREQ_ONCE:
+        run_datetime = row["run_datetime"]
+        if not run_datetime:
+            logger.warning(f"任务 {task_id} (once) 没有 run_datetime 配置，跳过调度")
+            return
+        try:
+            dt = datetime.fromisoformat(run_datetime)
+        except ValueError:
+            logger.error(f"任务 {task_id} (once) run_datetime 格式错误: {run_datetime}")
+            return
+        if dt.tzinfo is None:
+            beijing_tz = pytz.timezone("Asia/Shanghai")
+            dt = beijing_tz.localize(dt)
+        scheduler.add_job(
+            func=execute_scheduled_task,
+            trigger="date",
+            run_date=dt,
+            args=[task_id],
+            id=job_id,
+            replace_existing=True,
+        )
+
+    else:
+        logger.error(f"任务 {task_id} 未知 freq: {freq}")
+        return
+
     scheduled_jobs[job_id] = task_id
+    logger.info(f"已调度任务 {task_id} (freq={freq})")
 
 
 def reschedule_task(task_id):

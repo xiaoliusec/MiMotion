@@ -1002,6 +1002,88 @@ input:checked + .slider:before {
     color: var(--text-secondary);
 }
 
+.freq-options {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.time-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 8px;
+    min-height: 32px;
+}
+
+.time-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px 4px 12px;
+    background: var(--primary);
+    color: #fff;
+    border-radius: 16px;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+}
+
+.time-chip-remove {
+    background: transparent;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    font-size: 12px;
+    padding: 0 2px;
+    line-height: 1;
+    opacity: 0.85;
+}
+
+.time-chip-remove:hover {
+    opacity: 1;
+}
+
+.time-chip-add {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.time-chip-add input[type="time"] {
+    width: 130px;
+}
+
+.weekday-toggles {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.weekday-toggle {
+    width: 38px;
+    height: 38px;
+    border: 1px solid var(--border);
+    background: var(--bg-card, #fff);
+    color: var(--text-primary);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.15s;
+    padding: 0;
+}
+
+.weekday-toggle:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.weekday-toggle.active {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+}
+
 .selected-accounts-info {
     text-align: center;
     padding: 12px;

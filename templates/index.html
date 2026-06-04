@@ -460,9 +460,63 @@
                     </div>
                 </div>
                 <div class="form-group">
-                    <label for="task-time">执行时间</label>
-                    <input type="time" id="task-time" value="08:00">
-                    <small class="help-text">每天定时执行一次</small>
+                    <label>执行频率</label>
+                    <div class="freq-options">
+                        <label class="radio-label">
+                            <input type="radio" name="taskFreq" value="daily" checked onchange="toggleTaskFreq()">
+                            <span>每天</span>
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="taskFreq" value="weekly" onchange="toggleTaskFreq()">
+                            <span>每周</span>
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="taskFreq" value="monthly" onchange="toggleTaskFreq()">
+                            <span>每月</span>
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="taskFreq" value="once" onchange="toggleTaskFreq()">
+                            <span>仅一次</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group task-freq-daily">
+                    <label>执行时刻（可添加多个）</label>
+                    <div class="time-chips" id="task-time-chips"></div>
+                    <div class="time-chip-add">
+                        <input type="time" id="task-time-input" value="08:00">
+                        <button type="button" class="btn btn-outline btn-sm" onclick="addTimeChip()">+ 添加时刻</button>
+                    </div>
+                </div>
+
+                <div class="form-group task-freq-weekly" style="display:none;">
+                    <label>星期（可多选）</label>
+                    <div class="weekday-toggles" id="task-weekday-toggles">
+                        <button type="button" class="weekday-toggle" data-day="1">一</button>
+                        <button type="button" class="weekday-toggle" data-day="2">二</button>
+                        <button type="button" class="weekday-toggle" data-day="3">三</button>
+                        <button type="button" class="weekday-toggle" data-day="4">四</button>
+                        <button type="button" class="weekday-toggle" data-day="5">五</button>
+                        <button type="button" class="weekday-toggle" data-day="6">六</button>
+                        <button type="button" class="weekday-toggle" data-day="0">日</button>
+                    </div>
+                    <label style="margin-top:12px;">执行时间</label>
+                    <input type="time" id="task-weekly-time" value="08:00">
+                </div>
+
+                <div class="form-group task-freq-monthly" style="display:none;">
+                    <label for="task-month-days">日期（多个用英文逗号分隔，1-31）</label>
+                    <input type="text" id="task-month-days" placeholder="例如: 1,15,30">
+                    <label style="margin-top:12px;">执行时间</label>
+                    <input type="time" id="task-monthly-time" value="08:00">
+                </div>
+
+                <div class="form-group task-freq-once" style="display:none;">
+                    <label>执行日期</label>
+                    <input type="date" id="task-once-date">
+                    <label style="margin-top:12px;">执行时间</label>
+                    <input type="time" id="task-once-time" value="08:00">
                 </div>
             </div>
             <div class="modal-footer">

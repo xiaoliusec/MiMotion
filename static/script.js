@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', function() {
 function initEventListeners() {
     document.getElementById('verify-form').addEventListener('submit', handleVerify);
     document.getElementById('step-form').addEventListener('submit', handleSetStep);
-    
+
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             const tabName = this.dataset.tab;
@@ -26,9 +26,15 @@ function initEventListeners() {
             this.classList.add('active');
             document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
             document.getElementById(tabName + '-tab').style.display = 'block';
-            
+
             if (tabName === 'history') loadHistory();
             if (tabName === 'tasks') loadTasks();
+        });
+    });
+
+    document.querySelectorAll('.weekday-toggle').forEach(btn => {
+        btn.addEventListener('click', function() {
+            this.classList.toggle('active');
         });
     });
 }
@@ -856,7 +862,7 @@ function renderTasks(tasks) {
                     <div class="task-config">
                         ${taskType}
                         <span class="task-range">${stepDisplay}</span>
-                        <span class="task-time">每天 ${task.execution_time}</span>
+                        <span class="task-time">${task.schedule_desc || ''}</span>
                     </div>
                 </div>
                 <div class="task-actions">
@@ -886,9 +892,23 @@ function showAddTaskModal() {
     document.getElementById('task-step-value').value = '';
     document.getElementById('task-step-min').value = '';
     document.getElementById('task-step-max').value = '';
-    document.getElementById('task-time').value = '08:00';
     document.querySelector('input[name="taskStepType"][value="fixed"]').checked = true;
+    document.querySelector('input[name="taskFreq"][value="daily"]').checked = true;
+    document.getElementById('task-time-input').value = '08:00';
+    document.getElementById('task-weekly-time').value = '08:00';
+    document.getElementById('task-monthly-time').value = '08:00';
+    document.getElementById('task-month-days').value = '';
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    document.getElementById('task-once-date').value = `${yyyy}-${mm}-${dd}`;
+    document.getElementById('task-once-time').value = '08:00';
+    document.getElementById('task-time-chips').innerHTML = '';
+    document.querySelectorAll('.weekday-toggle').forEach(btn => btn.classList.remove('active'));
+    addTimeChip('08:00');
     toggleTaskStepType();
+    toggleTaskFreq();
 }
 
 function hideAddTaskModal() {
@@ -901,13 +921,49 @@ function toggleTaskStepType() {
     document.querySelector('.task-random-group').style.display = stepType === 'random' ? 'block' : 'none';
 }
 
+function toggleTaskFreq() {
+    const freq = document.querySelector('input[name="taskFreq"]:checked').value;
+    document.querySelector('.task-freq-daily').style.display = freq === 'daily' ? 'block' : 'none';
+    document.querySelector('.task-freq-weekly').style.display = freq === 'weekly' ? 'block' : 'none';
+    document.querySelector('.task-freq-monthly').style.display = freq === 'monthly' ? 'block' : 'none';
+    document.querySelector('.task-freq-once').style.display = freq === 'once' ? 'block' : 'none';
+}
+
+function addTimeChip(time) {
+    const t = time || document.getElementById('task-time-input').value;
+    if (!t) return;
+    const container = document.getElementById('task-time-chips');
+    const existing = Array.from(container.querySelectorAll('.time-chip-text')).map(el => el.textContent);
+    if (existing.includes(t)) {
+        return;
+    }
+    const chip = document.createElement('span');
+    chip.className = 'time-chip';
+    chip.innerHTML = `<span class="time-chip-text">${t}</span><button type="button" class="time-chip-remove" onclick="removeTimeChip(this)">✕</button>`;
+    container.appendChild(chip);
+}
+
+function removeTimeChip(btn) {
+    btn.parentElement.remove();
+}
+
+function getTimeChips() {
+    return Array.from(document.querySelectorAll('#task-time-chips .time-chip-text')).map(el => el.textContent);
+}
+
+function getSelectedWeekdays() {
+    return Array.from(document.querySelectorAll('.weekday-toggle.active'))
+        .map(btn => parseInt(btn.dataset.day))
+        .sort((a, b) => a - b);
+}
+
 async function createTask() {
     const accountId = document.getElementById('task-account').value;
     const taskType = document.querySelector('input[name="taskStepType"]:checked').value;
-    const stepValue = taskType === 'fixed' 
+    const stepValue = taskType === 'fixed'
         ? document.getElementById('task-step-value').value.trim()
         : `${document.getElementById('task-step-min').value.trim()}-${document.getElementById('task-step-max').value.trim()}`;
-    const executionTime = document.getElementById('task-time').value;
+    const freq = document.querySelector('input[name="taskFreq"]:checked').value;
 
     if (!accountId) {
         alert('请选择账号');
@@ -924,21 +980,61 @@ async function createTask() {
         return;
     }
 
+    let payload = {};
+    if (freq === 'daily') {
+        const times = getTimeChips();
+        if (times.length === 0) {
+            alert('请至少添加一个执行时刻');
+            return;
+        }
+        payload.times = times;
+    } else if (freq === 'weekly') {
+        const weekdays = getSelectedWeekdays();
+        if (weekdays.length === 0) {
+            alert('请至少选择一个星期');
+            return;
+        }
+        payload.weekdays = weekdays;
+        payload.time = document.getElementById('task-weekly-time').value;
+    } else if (freq === 'monthly') {
+        const raw = document.getElementById('task-month-days').value.trim();
+        if (!raw) {
+            alert('请输入日期');
+            return;
+        }
+        const days = raw.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+        if (days.length === 0) {
+            alert('日期格式错误');
+            return;
+        }
+        payload.monthDays = days;
+        payload.time = document.getElementById('task-monthly-time').value;
+    } else if (freq === 'once') {
+        const date = document.getElementById('task-once-date').value;
+        const time = document.getElementById('task-once-time').value;
+        if (!date || !time) {
+            alert('请选择执行日期和时间');
+            return;
+        }
+        payload.runDatetime = `${date}T${time}:00`;
+    }
+
     try {
         showLoading('create-task-btn', true);
 
         const response = await fetch(`${API_BASE}/tasks`, {
             method: 'POST',
-            headers: { 
+            headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${jwtToken}`
             },
-            body: JSON.stringify({ 
+            body: JSON.stringify({
                 action: 'create',
                 accountId: parseInt(accountId),
                 taskType,
                 stepValue,
-                executionTime
+                freq,
+                payload
             })
         });
         const data = await response.json();
