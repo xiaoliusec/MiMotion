@@ -26,6 +26,7 @@ function initEventListeners() {
             this.classList.add('active');
             document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
             document.getElementById(tabName + '-tab').style.display = 'block';
+            hideResult('main-result');
 
             if (tabName === 'history') loadHistory();
             if (tabName === 'tasks') loadTasks();
