@@ -687,7 +687,7 @@ async function addCode() {
     }
 
     try {
-        showLoading('add-code-btn', true);
+        showLoading('add-code-submit-btn', true);
         hideResult('add-code-result');
 
         const response = await fetch(`${API_BASE}/admin/codes`, {
@@ -709,7 +709,7 @@ async function addCode() {
     } catch (error) {
         showResult('add-code-result', '添加失败: ' + error.message, 'error');
     } finally {
-        showLoading('add-code-btn', false);
+        showLoading('add-code-submit-btn', false);
     }
 }
 
@@ -835,16 +835,14 @@ async function loadTasks() {
 
 function renderTasks(tasks) {
     const list = document.getElementById('tasks-list');
-    const empty = document.getElementById('tasks-empty');
 
     if (tasks.length === 0) {
-        list.style.display = 'none';
-        empty.style.display = 'block';
+        list.style.display = 'block';
+        list.innerHTML = '<div class="empty-state"><p>暂无定时任务</p></div>';
         return;
     }
 
     list.style.display = 'flex';
-    empty.style.display = 'none';
 
     list.innerHTML = tasks.map(task => {
         const accountUser = task.account_user ? formatUserDisplay(task.account_user) : '未知';
@@ -1206,16 +1204,20 @@ function showLoading(btnId, loading) {
 
     btn.disabled = loading;
     if (loading) {
-        btnText.style.display = 'none';
-        btnLoading.style.display = 'flex';
+        if (btnText) btnText.style.display = 'none';
+        if (btnLoading) btnLoading.style.display = 'flex';
     } else {
-        btnText.style.display = 'block';
-        btnLoading.style.display = 'none';
+        if (btnText) btnText.style.display = 'block';
+        if (btnLoading) btnLoading.style.display = 'none';
     }
 }
 
 function showResult(elementId, message, type) {
     const result = document.getElementById(elementId);
+    if (!result) {
+        console.warn('showResult: element not found:', elementId);
+        return;
+    }
     result.textContent = message;
     result.className = 'result ' + type;
     result.style.display = 'block';

@@ -184,10 +184,6 @@
                         <button class="btn btn-primary btn-sm" onclick="showAddTaskModal()">添加任务</button>
                     </div>
                     <div class="tasks-list" id="tasks-list"></div>
-                    <div class="empty-state" id="tasks-empty" style="display:none;">
-                        <p>暂无定时任务</p>
-                        <button class="btn btn-outline" onclick="showAddTaskModal()">添加第一个任务</button>
-                    </div>
                 </div>
 
                 <div id="main-result" class="result" style="display: none;"></div>
@@ -273,7 +269,7 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-outline" onclick="hideAddCodeModal()">取消</button>
-                <button class="btn btn-primary" onclick="addCode()" id="add-code-btn">
+                <button class="btn btn-primary" onclick="addCode()" id="add-code-submit-btn">
                     <span class="btn-text">添加</span>
                     <span class="btn-loading" style="display:none;">
                         <svg class="spinner" viewBox="0 0 24 24">
